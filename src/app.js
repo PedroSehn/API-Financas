@@ -1,10 +1,21 @@
 const express = require('express');
+const db = require('./config/database');
 const app = express();
 
 app.use(express.json());
 
 // Rotas públicas
-app.use('/auth', require('./modules/auth/auth.routes'));
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    console.log('[health] Conexão com o banco de dados OK');
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('[health] Erro ao conectar no banco:', err);
+    res.status(503).send();
+  }
+});
+app.use('/auth',   require('./modules/auth/auth.routes'));
 
 // Middlewares de autenticação
 app.use(require('./middlewares/auth.middleware'));
