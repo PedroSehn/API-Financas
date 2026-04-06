@@ -28,7 +28,8 @@ O projeto nasceu da necessidade de ter um controle financeiro pessoal acessível
 financa-api/
 ├── src/
 │   ├── config/
-│   │   └── database.js          # Conexão com PostgreSQL
+│   │   ├── database.js          # Conexão com PostgreSQL
+        └── db.sql               # Schema completo do banco
 │   ├── modules/
 │   │   ├── auth/                # Login e autenticação JWT
 │   │   ├── users/               # Dados do usuário logado
@@ -44,8 +45,6 @@ financa-api/
 │   │   └── monthFilter.js       # Helper de filtro por mês/ano
 │   ├── app.js
 │   └── server.js
-├── db/
-│   └── db.sql                   # Schema completo do banco
 ├── .env.example
 └── package.json
 ```
