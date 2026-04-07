@@ -1,7 +1,7 @@
 # Skill: Testing
 
-Framework de testes do backend: **Mocha + Sinon + Chai**.
-Dois tipos de teste: **unitário** (service isolado, banco mockado) e **integração** (banco real, usuário de teste isolado).
+Framework de testes do backend: **Jest + Supertest**.
+Todos os testes batem no banco real — nunca mockar o banco.
 
 ---
 
@@ -9,132 +9,135 @@ Dois tipos de teste: **unitário** (service isolado, banco mockado) e **integra�
 
 ### Dependências
 ```bash
-npm install --save-dev mocha sinon chai sinon-chai
+npm install --save-dev jest supertest
 ```
 
 ### package.json
 ```json
 "scripts": {
-  "test": "mocha 'tests/**/*.test.js' --timeout 10000 --exit",
-  "test:unit": "mocha 'tests/unit/**/*.test.js' --timeout 5000 --exit",
-  "test:integration": "mocha 'tests/integration/**/*.test.js' --timeout 10000 --exit"
+  "test": "jest --runInBand --forceExit"
 }
+```
+
+> `--runInBand` evita conflitos de concorrência no banco.  
+> `--forceExit` fecha as conexões do `pg` ao terminar.
+
+### jest.config.js
+```js
+module.exports = {
+  testEnvironment: 'node',
+  setupFiles: ['dotenv/config'],  // carrega .env antes de cada suite
+  testMatch: ['**/tests/**/*.test.js'],
+  verbose: true,
+  silent: true,  // suprime console.log do app durante os testes
+};
 ```
 
 ### Estrutura de pastas
 ```
 tests/
 ├── helpers/
-│   ├── setup.js          ← configuração global (chai, sinon-chai)
-│   ├── db.js             ← helpers de banco para integração
-│   └── factories.js      ← factories de dados de teste
-├── unit/
-│   ├── expenses.test.js
-│   ├── incomes.test.js
-│   ├── credit-cards.test.js
-│   ├── salary.test.js
-│   └── simulation.test.js
-└── integration/
-    ├── auth.test.js
-    ├── expenses.test.js
-    ├── incomes.test.js
-    ├── credit-cards.test.js
-    └── simulation.test.js
-```
-
-### `.mocharc.js`
-```js
-module.exports = {
-  require: ['tests/helpers/setup.js'],
-  timeout: 10000,
-  exit: true,
-};
+│   ├── db.js          ← lifecycle de usuários de teste + generateToken
+│   └── factories.js   ← factories de dados por módulo
+├── health.test.js
+├── auth.test.js
+├── middlewares.test.js
+├── salary.test.js
+├── expenses.test.js
+├── incomes.test.js
+├── credit-cards.test.js
+└── simulation.test.js
 ```
 
 ---
 
 ## Usuário de teste
 
-Nunca usar dados reais. Todos os testes usam um usuário fixo de teste na mesma tabela `users`.
+Nunca usar dados reais. Todos os testes usam usuários fixos criados e destruídos via helpers.
 
 ```js
 // tests/helpers/db.js
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const pool = require('../../src/config/database');
 
 const TEST_USER = {
-  email: 'test@financa.app',
-  name: 'Usuário de Teste',
-  password_hash: '$2a$10$hash_fixo_do_bcrypt', // bcrypt de 'test123'
+  name: 'Jest Test',
+  email: 'jest_test@test.com',
+  password: 'test123',
   is_demo: false,
 };
 
 const TEST_DEMO_USER = {
-  email: 'testdemo@financa.app',
-  name: 'Demo Teste',
-  password_hash: '$2a$10$hash_fixo_do_bcrypt',
+  name: 'Jest Demo',
+  email: 'jest_demo@test.com',
+  password: 'demo123',
   is_demo: true,
 };
 
-// Retorna ou cria o usuário de teste
-const getTestUser = async () => {
+async function createTestUser() {
+  const hash = await bcrypt.hash(TEST_USER.password, 10);
   const { rows } = await pool.query(
     `INSERT INTO users (name, email, password_hash, is_demo)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
      RETURNING *`,
-    [TEST_USER.name, TEST_USER.email, TEST_USER.password_hash, TEST_USER.is_demo]
+    [TEST_USER.name, TEST_USER.email, hash, TEST_USER.is_demo]
   );
   return rows[0];
-};
+}
 
-const getTestDemoUser = async () => {
+async function createDemoUser() {
+  const hash = await bcrypt.hash(TEST_DEMO_USER.password, 10);
   const { rows } = await pool.query(
     `INSERT INTO users (name, email, password_hash, is_demo)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
      RETURNING *`,
-    [TEST_DEMO_USER.name, TEST_DEMO_USER.email, TEST_DEMO_USER.password_hash, TEST_DEMO_USER.is_demo]
+    [TEST_DEMO_USER.name, TEST_DEMO_USER.email, hash, TEST_DEMO_USER.is_demo]
   );
   return rows[0];
-};
+}
 
-// Limpa todos os dados do usuário de teste (roda antes de cada teste de integração)
-const cleanTestUserData = async (userId) => {
+async function cleanupTestUsers() {
+  await pool.query(
+    `DELETE FROM users WHERE email IN ($1, $2)`,
+    [TEST_USER.email, TEST_DEMO_USER.email]
+  );
+}
+
+// Limpa apenas os dados (não o usuário) — útil no afterEach
+async function cleanTestUserData(userId) {
   await pool.query(`DELETE FROM card_transactions WHERE credit_card_id IN (
     SELECT id FROM credit_cards WHERE user_id = $1
   )`, [userId]);
-  await pool.query(`DELETE FROM credit_cards WHERE user_id = $1`, [userId]);
-  await pool.query(`DELETE FROM expenses WHERE user_id = $1`, [userId]);
-  await pool.query(`DELETE FROM incomes WHERE user_id = $1`, [userId]);
-  await pool.query(`DELETE FROM salary_config WHERE user_id = $1`, [userId]);
+  await pool.query(`DELETE FROM credit_cards  WHERE user_id = $1`, [userId]);
+  await pool.query(`DELETE FROM expenses       WHERE user_id = $1`, [userId]);
+  await pool.query(`DELETE FROM incomes        WHERE user_id = $1`, [userId]);
+  await pool.query(`DELETE FROM salary_config  WHERE user_id = $1`, [userId]);
+}
+
+function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, name: user.name, email: user.email, is_demo: user.is_demo },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+}
+
+module.exports = {
+  TEST_USER, TEST_DEMO_USER,
+  createTestUser, createDemoUser,
+  cleanupTestUsers, cleanTestUserData,
+  generateToken,
 };
-
-module.exports = { getTestUser, getTestDemoUser, cleanTestUserData };
-```
-
----
-
-## Setup global
-
-```js
-// tests/helpers/setup.js
-const chai = require('chai');
-const sinon = require('sinon');
-const sinonChai = require('sinon-chai');
-
-chai.use(sinonChai);
-global.expect = chai.expect;
-global.sinon = sinon;
-
-// Restaura todos os stubs/spies após cada teste
-afterEach(() => {
-  sinon.restore();
-});
 ```
 
 ---
 
 ## Factories
+
+Centralizam dados de teste. Evitam repetição e facilitam variações nos testes.
 
 ```js
 // tests/helpers/factories.js
@@ -183,250 +186,74 @@ module.exports = { expenseFactory, incomeFactory, cardFactory, transactionFactor
 
 ---
 
-## Testes unitários
-
-Mock obrigatório do pool de banco. Nunca bater no banco real em testes unitários.
-
-### Padrão de teste unitário
+## Padrão de teste
 
 ```js
-// tests/unit/expenses.test.js
-const sinon = require('sinon');
-const { expect } = require('chai');
-const pool = require('../../src/config/database');
-const expensesService = require('../../src/modules/expenses/expenses.service');
-const { expenseFactory } = require('../helpers/factories');
-
-describe('ExpensesService', () => {
-  let queryStub;
-
-  beforeEach(() => {
-    queryStub = sinon.stub(pool, 'query');
-  });
-
-  // getByMonth
-  describe('getByMonth', () => {
-    it('deve retornar expenses do mês correto', async () => {
-      const fakeExpenses = [expenseFactory({ id: 1, user_id: 1 })];
-      queryStub.resolves({ rows: fakeExpenses });
-
-      const result = await expensesService.getByMonth(1, 2025, 3);
-
-      expect(queryStub).to.have.been.calledOnce;
-      expect(result).to.deep.equal(fakeExpenses);
-    });
-
-    it('deve retornar array vazio quando não há expenses no mês', async () => {
-      queryStub.resolves({ rows: [] });
-
-      const result = await expensesService.getByMonth(1, 2025, 3);
-
-      expect(result).to.be.an('array').that.is.empty;
-    });
-  });
-
-  // create
-  describe('create', () => {
-    it('deve criar uma expense e retornar o registro criado', async () => {
-      const data = expenseFactory();
-      const created = { id: 1, user_id: 1, ...data };
-      queryStub.resolves({ rows: [created] });
-
-      const result = await expensesService.create(1, data);
-
-      expect(queryStub).to.have.been.calledOnce;
-      expect(result).to.deep.equal(created);
-    });
-
-    it('deve lançar erro se a query falhar', async () => {
-      queryStub.rejects(new Error('DB error'));
-
-      await expect(expensesService.create(1, expenseFactory()))
-        .to.be.rejectedWith('DB error');
-    });
-  });
-
-  // update
-  describe('update', () => {
-    it('deve retornar null se expense não pertencer ao usuário', async () => {
-      queryStub.resolves({ rows: [] });
-
-      const result = await expensesService.update(1, 99, { value: 200 });
-
-      expect(result).to.be.null;
-    });
-  });
-
-  // delete
-  describe('delete', () => {
-    it('deve retornar true ao deletar com sucesso', async () => {
-      queryStub.resolves({ rowCount: 1 });
-
-      const result = await expensesService.delete(1, 1);
-
-      expect(result).to.be.true;
-    });
-
-    it('deve retornar false se expense não existir ou não pertencer ao usuário', async () => {
-      queryStub.resolves({ rowCount: 0 });
-
-      const result = await expensesService.delete(1, 99);
-
-      expect(result).to.be.false;
-    });
-  });
-});
-```
-
----
-
-## Testes de integração
-
-Batem no banco real. Usam o usuário de teste isolado. Sempre limpar dados antes de cada teste.
-
-### Padrão de teste de integração
-
-```js
-// tests/integration/expenses.test.js
-const { expect } = require('chai');
 const request = require('supertest');
-const app = require('../../src/app');
-const { getTestUser, cleanTestUserData } = require('../helpers/db');
-const { expenseFactory } = require('../helpers/factories');
-const jwt = require('jsonwebtoken');
+const pool = require('../src/config/database');
+const app = require('../src/app');
+const { createTestUser, cleanupTestUsers, cleanTestUserData, generateToken } = require('./helpers/db');
+const { expenseFactory } = require('./helpers/factories');
 
-describe('[Integration] Expenses', () => {
-  let testUser;
-  let token;
+let token;
+let userId;
 
-  // Roda uma vez antes de todos os testes do bloco
-  before(async () => {
-    testUser = await getTestUser();
-    token = jwt.sign(
-      { id: testUser.id, email: testUser.email, is_demo: testUser.is_demo },
-      process.env.JWT_SECRET
-    );
-  });
-
-  // Limpa os dados do usuário de teste antes de cada teste
-  beforeEach(async () => {
-    await cleanTestUserData(testUser.id);
-  });
-
-  describe('POST /expenses', () => {
-    it('deve criar uma expense com sucesso', async () => {
-      const data = expenseFactory();
-
-      const res = await request(app)
-        .post('/expenses')
-        .set('Authorization', `Bearer ${token}`)
-        .send(data);
-
-      expect(res.status).to.equal(201);
-      expect(res.body.data).to.include({ label: data.label, value: data.value });
-    });
-
-    it('deve retornar 401 sem token', async () => {
-      const res = await request(app)
-        .post('/expenses')
-        .send(expenseFactory());
-
-      expect(res.status).to.equal(401);
-    });
-  });
-
-  describe('GET /expenses?year=2025&month=1', () => {
-    it('deve retornar expenses ativas no mês consultado', async () => {
-      // Cria uma expense que cobre janeiro de 2025
-      await request(app)
-        .post('/expenses')
-        .set('Authorization', `Bearer ${token}`)
-        .send(expenseFactory({ start_month: 1, start_year: 2025, duration_months: 6 }));
-
-      const res = await request(app)
-        .get('/expenses?year=2025&month=1')
-        .set('Authorization', `Bearer ${token}`);
-
-      expect(res.status).to.equal(200);
-      expect(res.body.data).to.have.length(1);
-    });
-
-    it('não deve retornar expenses fora do período', async () => {
-      // Cria expense que começa em março — não deve aparecer em janeiro
-      await request(app)
-        .post('/expenses')
-        .set('Authorization', `Bearer ${token}`)
-        .send(expenseFactory({ start_month: 3, start_year: 2025, duration_months: 3 }));
-
-      const res = await request(app)
-        .get('/expenses?year=2025&month=1')
-        .set('Authorization', `Bearer ${token}`);
-
-      expect(res.status).to.equal(200);
-      expect(res.body.data).to.have.length(0);
-    });
-  });
-
-  describe('DELETE /expenses/:id', () => {
-    it('não deve deletar expense de outro usuário', async () => {
-      // Cria expense com usuário de teste
-      const createRes = await request(app)
-        .post('/expenses')
-        .set('Authorization', `Bearer ${token}`)
-        .send(expenseFactory());
-
-      const expenseId = createRes.body.data.id;
-
-      // Tenta deletar com outro token (simula usuário diferente)
-      const otherToken = jwt.sign(
-        { id: 9999, email: 'outro@test.com', is_demo: false },
-        process.env.JWT_SECRET
-      );
-
-      const res = await request(app)
-        .delete(`/expenses/${expenseId}`)
-        .set('Authorization', `Bearer ${otherToken}`);
-
-      expect(res.status).to.equal(404);
-    });
-  });
+beforeAll(async () => {
+  const user = await createTestUser();
+  userId = user.id;
+  token = generateToken(user);
 });
-```
 
----
+afterAll(cleanupTestUsers);
 
-## Testes do middleware demo
+afterEach(async () => {
+  await cleanTestUserData(userId);  // isola cada teste
+});
 
-```js
-// tests/integration/auth.test.js
-describe('[Integration] Demo middleware', () => {
-  let demoToken;
-
-  before(async () => {
-    const demoUser = await getTestDemoUser();
-    demoToken = jwt.sign(
-      { id: demoUser.id, email: demoUser.email, is_demo: true },
-      process.env.JWT_SECRET
-    );
-  });
-
-  it('deve bloquear POST para usuário demo', async () => {
+describe('Criar despesa — POST /expenses', () => {
+  it('retorna 201 com o recurso criado quando os dados são válidos', async () => {
     const res = await request(app)
       .post('/expenses')
-      .set('Authorization', `Bearer ${demoToken}`)
+      .set('Authorization', `Bearer ${token}`)
       .send(expenseFactory());
 
-    expect(res.status).to.equal(403);
-    expect(res.body.message).to.equal('Ação não permitida no modo demo.');
+    expect(res.status).toBe(201);
+    expect(res.body.data).toHaveProperty('id');
   });
 
-  it('deve permitir GET para usuário demo', async () => {
+  it('retorna 401 quando nenhum token é enviado', async () => {
     const res = await request(app)
-      .get('/expenses?year=2025&month=1')
-      .set('Authorization', `Bearer ${demoToken}`);
+      .post('/expenses')
+      .send(expenseFactory());
 
-    expect(res.status).to.equal(200);
+    expect(res.status).toBe(401);
   });
+});
+```
+
+---
+
+## Isolamento por user_id
+
+Todo módulo com dados por usuário deve ter um teste que garante que um usuário não acessa dados de outro.
+
+```js
+it('retorna 404 ao tentar editar recurso de outro usuário', async () => {
+  const createRes = await request(app)
+    .post('/expenses')
+    .set('Authorization', `Bearer ${token}`)
+    .send(expenseFactory());
+
+  const id = createRes.body.data.id;
+
+  const otherToken = generateToken({ id: 9999, name: 'Outro', email: 'outro@test.com', is_demo: false });
+
+  const res = await request(app)
+    .put(`/expenses/${id}`)
+    .set('Authorization', `Bearer ${otherToken}`)
+    .send(expenseFactory({ value: 999 }));
+
+  expect(res.status).toBe(404);
 });
 ```
 
@@ -434,36 +261,31 @@ describe('[Integration] Demo middleware', () => {
 
 ## Cenários obrigatórios por módulo
 
-Todo service deve cobrir no mínimo:
-
-**Testes unitários:**
-- retorno correto com dados válidos
-- retorno vazio quando não há registros
-- erro de banco propagado corretamente
-- isolamento por user_id (não retornar dados de outro usuário)
-
-**Testes de integração:**
+**Todo módulo de CRUD deve cobrir:**
 - criação com sucesso (201)
-- leitura com filtro de mês correto
-- item fora do período não aparece na consulta
-- deleção/edição de item de outro usuário retorna 404
+- campo obrigatório ausente (400)
+- leitura retorna dados do usuário (200)
+- edição com sucesso (200)
+- edição/deleção de recurso de outro usuário retorna 404
 - requisição sem token retorna 401
 - usuário demo bloqueado em escrita (403)
-- usuário demo liberado em leitura (200)
+- deleção com sucesso (204 ou 200)
 
-**Testes da lógica de duração (obrigatório em expenses e incomes):**
-- `duration_months: 1` aparece só no mês de início
-- `duration_months: 6` aparece nos 6 meses corretos e não nos adjacentes
-- `duration_months: 999` aparece em qualquer mês futuro consultado
+**Módulos que usam filtro de mês (expenses, incomes, credit-cards) devem cobrir também:**
+- item aparece no mês correto
+- item fora do período não aparece na consulta
+- `duration_months: 1` — aparece só no mês de início
+- `duration_months: 6` — aparece nos 6 meses corretos e não nos adjacentes
+- `duration_months: 999` — aparece em qualquer mês futuro consultado
 
 ---
 
 ## Regras da skill
 
-- NUNCA mockar o banco em testes de integração
-- SEMPRE limpar dados com `cleanTestUserData` no `beforeEach` de integração
-- NUNCA usar `user_id` hardcoded nos testes — sempre via `testUser.id`
-- SEMPRE testar o cenário de isolamento (outro usuário não acessa seus dados)
-- SEMPRE testar os três cenários de duração em qualquer módulo que use `monthFilter`
-- Testes unitários ficam em `tests/unit/`, integração em `tests/integration/`
-- Adicionar `supertest` para testes de integração: `npm install --save-dev supertest`
+- NUNCA mockar o banco — usar sempre o PostgreSQL real
+- SEMPRE limpar dados com `cleanTestUserData` no `afterEach`
+- NUNCA usar `user_id` hardcoded — sempre via `user.id` retornado pelo banco
+- SEMPRE testar isolamento: outro usuário não acessa seus dados
+- SEMPRE testar os três cenários de duração em módulos com `monthFilter`
+- Usar factories para montar payloads; `overrides` para variações de cenário
+- Nomes dos testes descrevem o comportamento esperado, não a implementação
