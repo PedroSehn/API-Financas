@@ -1,0 +1,135 @@
+{
+  "info": {
+    "name": "Finança API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3333"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.token) {",
+                  "  pm.collectionVariables.set('token', json.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"pedro@financas.com\",\n  \"password\": \"pedro123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Salary",
+      "item": [
+        {
+          "name": "Get Salary Config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/salary",
+              "host": ["{{baseUrl}}"],
+              "path": ["salary"]
+            }
+          }
+        },
+        {
+          "name": "Create Salary Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gross_salary\": 5000,\n  \"has_inss\": true,\n  \"has_irrf\": true,\n  \"vt_percentage\": 6,\n  \"health_plan\": 150,\n  \"other_discounts\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/salary",
+              "host": ["{{baseUrl}}"],
+              "path": ["salary"]
+            }
+          }
+        },
+        {
+          "name": "Update Salary Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gross_salary\": 5500,\n  \"has_inss\": true,\n  \"has_irrf\": true,\n  \"vt_percentage\": 6,\n  \"health_plan\": 150,\n  \"other_discounts\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/salary",
+              "host": ["{{baseUrl}}"],
+              "path": ["salary"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
