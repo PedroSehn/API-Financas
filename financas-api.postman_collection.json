@@ -130,6 +130,152 @@
           }
         }
       ]
+    },
+    {
+      "name": "Incomes",
+      "item": [
+        {
+          "name": "Get Incomes by Month",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/incomes?year=2026&month=4",
+              "host": ["{{baseUrl}}"],
+              "path": ["incomes"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "4" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Income",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Salário\",\n  \"emoji\": \"💰\",\n  \"value\": 3000,\n  \"type\": \"salary\",\n  \"start_month\": 1,\n  \"start_year\": 2026,\n  \"duration_months\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/incomes",
+              "host": ["{{baseUrl}}"],
+              "path": ["incomes"]
+            }
+          }
+        },
+        {
+          "name": "Update Income",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Salário\",\n  \"emoji\": \"💰\",\n  \"value\": 3500,\n  \"type\": \"salary\",\n  \"start_month\": 1,\n  \"start_year\": 2026,\n  \"duration_months\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/incomes/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["incomes", ":id"],
+              "variable": [
+                { "key": "id", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Income",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/incomes/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["incomes", ":id"],
+              "variable": [
+                { "key": "id", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "Get Expenses by Month",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/expenses?year=2026&month=4",
+              "host": ["{{baseUrl}}"],
+              "path": ["expenses"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "4" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Aluguel\",\n  \"emoji\": \"🏠\",\n  \"value\": 1500,\n  \"category\": \"moradia\",\n  \"start_month\": 1,\n  \"start_year\": 2026,\n  \"duration_months\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/expenses",
+              "host": ["{{baseUrl}}"],
+              "path": ["expenses"]
+            }
+          }
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Aluguel\",\n  \"emoji\": \"🏠\",\n  \"value\": 1800,\n  \"category\": \"moradia\",\n  \"start_month\": 1,\n  \"start_year\": 2026,\n  \"duration_months\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/expenses/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["expenses", ":id"],
+              "variable": [
+                { "key": "id", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/expenses/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["expenses", ":id"],
+              "variable": [
+                { "key": "id", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
