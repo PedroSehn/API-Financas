@@ -28,5 +28,6 @@ app.use('/incomes',     require('./modules/incomes/incomes.routes'));
 app.use('/expenses',    require('./modules/expenses/expenses.routes'));
 app.use('/credit-cards',require('./modules/credit-cards/credit-cards.routes'));
 app.use('/simulation',  require('./modules/simulation/simulation.routes'));
+app.use('/dashboard',   require('./modules/dashboard/dashboard.routes'));
 
 module.exports = app;

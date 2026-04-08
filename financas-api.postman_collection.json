@@ -438,6 +438,49 @@
           }
         }
       ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/dashboard?year=2026&month=4",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "4" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Simulation",
+      "item": [
+        {
+          "name": "Simulate Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 500,\n  \"duration_months\": 10,\n  \"start_month\": 5,\n  \"start_year\": 2026,\n  \"description\": \"Novo celular\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/simulation",
+              "host": ["{{baseUrl}}"],
+              "path": ["simulation"]
+            }
+          }
+        }
+      ]
     }
   ]
 }
