@@ -215,6 +215,15 @@ describe('Dashboard — GET /dashboard', () => {
        VALUES ($1, 'Despesa alheia', 9999, 4, 2026, 999)`,
       [otherUser.id]
     );
+    const { rows: cardRows } = await pool.query(
+      `INSERT INTO credit_cards (user_id, name) VALUES ($1, 'Cartão Alheio') RETURNING *`,
+      [otherUser.id]
+    );
+    await pool.query(
+      `INSERT INTO card_transactions (credit_card_id, description, value, date, start_month, start_year, duration_months)
+       VALUES ($1, 'Transação alheia', 9999, '2026-04-01', 4, 2026, 1)`,
+      [cardRows[0].id]
+    );
 
     const res = await request(app)
       .get('/dashboard?year=2026&month=4')
@@ -223,8 +232,10 @@ describe('Dashboard — GET /dashboard', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.incomes).toHaveLength(0);
     expect(res.body.data.expenses).toHaveLength(0);
+    expect(res.body.data.credit_cards).toHaveLength(0);
     expect(res.body.data.summary.total_income).toBe(0);
     expect(res.body.data.summary.total_expenses).toBe(0);
+    expect(res.body.data.summary.total_credit_cards).toBe(0);
 
     await pool.query('DELETE FROM users WHERE id = $1', [otherUser.id]);
   });

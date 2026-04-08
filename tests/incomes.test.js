@@ -92,6 +92,8 @@ describe('Listar ganhos por mês — GET /incomes', () => {
   });
 
   it('não retorna ganhos de outro usuário', async () => {
+    await createIncome({ ...INCOME_BODY, start_month: 1, start_year: 2026 });
+
     const { rows } = await pool.query(
       `INSERT INTO users (name, email, password_hash) VALUES ('Outro', 'outro@test.com', 'x') RETURNING *`
     );
@@ -108,7 +110,8 @@ describe('Listar ganhos por mês — GET /incomes', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.every(i => i.user_id === userId)).toBe(true);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].user_id).toBe(userId);
 
     await pool.query('DELETE FROM users WHERE id = $1', [otherUser.id]);
   });

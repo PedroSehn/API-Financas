@@ -229,10 +229,25 @@ describe('Simulação — POST /simulation', () => {
       `INSERT INTO users (name, email, password_hash) VALUES ('Outro', 'outro_sim@test.com', 'x') RETURNING *`
     );
     const otherUser = rows[0];
+
     await pool.query(
       `INSERT INTO incomes (user_id, label, value, type, start_month, start_year, duration_months)
        VALUES ($1, 'Salário alheio', 9999, 'salary', 4, 2026, 999)`,
       [otherUser.id]
+    );
+    await pool.query(
+      `INSERT INTO expenses (user_id, label, value, start_month, start_year, duration_months)
+       VALUES ($1, 'Despesa alheia', 9999, 4, 2026, 999)`,
+      [otherUser.id]
+    );
+    const { rows: cardRows } = await pool.query(
+      `INSERT INTO credit_cards (user_id, name) VALUES ($1, 'Cartão Alheio') RETURNING *`,
+      [otherUser.id]
+    );
+    await pool.query(
+      `INSERT INTO card_transactions (credit_card_id, description, value, date, start_month, start_year, duration_months)
+       VALUES ($1, 'Transação alheia', 9999, '2026-04-01', 4, 2026, 1)`,
+      [cardRows[0].id]
     );
 
     const res = await request(app)
@@ -241,7 +256,10 @@ describe('Simulação — POST /simulation', () => {
       .send(SIMULATION_BODY);
 
     expect(res.status).toBe(200);
-    expect(res.body.data[0].income).toBe(0);
+    const entry = res.body.data[0];
+    expect(entry.income).toBe(0);
+    expect(entry.expenses).toBe(0);
+    expect(entry.card_total).toBe(0);
 
     await pool.query('DELETE FROM users WHERE id = $1', [otherUser.id]);
   });
